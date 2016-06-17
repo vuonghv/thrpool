@@ -1,5 +1,5 @@
-#ifndef THRPOOL_H
-#define THRPOOL_H
+#ifndef _THRPOOL_H
+#define _THRPOOL_H
 
 #include <pthread.h>
 
@@ -17,4 +17,4 @@ void thr_pool_wait(thr_pool_t *pool);
 
 void thr_pool_destroy(thr_pool_t *pool);
 
-#endif  /* THRPOOL_H */
+#endif  /* _THRPOOL_H */

@@ -43,6 +43,8 @@ struct thr_pool {
     unsigned int idle;  /* number of idle workers */
 };
 
+static void * worker_thread(void *arg);
+
 /*
  * Copy all attributes from src_attr to dst_attr.
  * If src_attr is NULL, initialize dst_attr with default values.
@@ -81,6 +83,76 @@ static void clone_attributes(pthread_attr_t *dst_attr,
     cpu_set_t cpuset;
     pthread_attr_getaffinity_np(src_attr, sizeof(cpu_set_t), &cpuset);
     pthread_attr_setaffinity_np(dst_attr, sizeof(cpu_set_t), &cpuset);
+}
+
+static void worker_cleanup(void *arg)
+{
+    if (arg == NULL) return;
+    
+    thr_pool_t *pool = (thr_pool_t *)arg;
+    pthread_t self = pthread_self();
+    worker_t *pre_worker = pool->worker;
+    worker_t *cur_worker = pool->worker;
+    
+    --pool->nthreads;
+
+    while (cur_worker != NULL) {
+        if (pthread_equal(cur_worker->thread, self))
+            break;
+        pre_worker = cur_worker;
+        cur_worker = cur_worker->next;
+    }
+
+    if (cur_worker == NULL) {
+        pthread_mutex_unlock(&pool->mutex);
+        return;
+    }
+
+    if (pre_worker == pool->worker) {
+        pool->worker = cur_worker->next;
+    } else {
+        pre_worker->next = cur_worker->next;
+    }
+
+    free(cur_worker);
+    pthread_mutex_unlock(&pool->mutex);
+}
+
+static int create_worker(void *arg)
+{
+    if (arg == NULL) return EINVAL;
+    thr_pool_t *pool = (thr_pool_t *)arg;
+    pthread_t thr;
+    int err = pthread_create(&thr, &pool->attr, worker_thread, pool);
+    if (err) return err;
+    return 0;
+}
+
+static void *worker_thread(void *arg)
+{
+    if (arg == NULL) return NULL;
+    thr_pool_t *pool = (thr_pool_t *)arg;
+    pthread_t self = pthread_self();
+    job_t *job = NULL;
+
+    pthread_mutex_lock(&pool->mutex);
+    pthread_cleanup_push(worker_cleanup, pool);
+    while (1) {
+        while (pool->job_head == NULL) {
+            pthread_cond_wait(&pool->wakecv, &pool->mutex);
+        }
+
+        /* get a job, then do it */
+        job = pool->job_head;
+        pool->job_head = job->next;
+
+        if (job == pool->job_tail)
+            pool->job_tail = NULL;
+
+        job->func(job->arg);
+        free(job);
+    }
+    pthread_cleanup_pop(1);
 }
 
 thr_pool_t *thr_pool_create(unsigned int min_threads,
@@ -139,8 +211,8 @@ int thr_pool_add(thr_pool_t *pool,
     pthread_mutex_unlock(&pool->mutex);
 
     pthread_mutex_lock(&pool->mutex);
-    if (pool->idle > 0) {
-        pthread_cond_signal(&pool->wakecv);
+    if (pool->job_head != NULL && pool->idle > 0) {
+        pthread_cond_broadcast(&pool->wakecv);
     } else if (pool->nthreads < pool->max) {
         /* TODO: create a new thread to do added job */
     }
