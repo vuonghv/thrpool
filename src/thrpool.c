@@ -44,6 +44,7 @@ struct thr_pool {
 };
 
 static void * worker_thread(void *arg);
+static int create_worker(void *arg);
 
 /*
  * Copy all attributes from src_attr to dst_attr.
@@ -115,9 +116,15 @@ static void worker_cleanup(void *arg)
     }
 
     free(cur_worker);
+
+    if (pool->nthreads < pool->min)
+        create_worker(pool);
     pthread_mutex_unlock(&pool->mutex);
 }
 
+/*
+ * Only call this function when acquire lock
+ */
 static int create_worker(void *arg)
 {
     if (arg == NULL) return EINVAL;
@@ -125,6 +132,18 @@ static int create_worker(void *arg)
     pthread_t thr;
     int err = pthread_create(&thr, &pool->attr, worker_thread, pool);
     if (err) return err;
+
+    ++pool->nthreads;
+    worker_t *worker = (worker_t *)malloc(sizeof(worker_t));
+    if (!worker) return errno;
+    worker->thread = thr;
+    if (pool->worker == NULL) {
+        pool->worker = worker;
+        worker->next = NULL;
+    } else {
+        worker->next = pool->worker;
+        pool->worker = worker;
+    }
     return 0;
 }
 
@@ -132,12 +151,12 @@ static void *worker_thread(void *arg)
 {
     if (arg == NULL) return NULL;
     thr_pool_t *pool = (thr_pool_t *)arg;
-    pthread_t self = pthread_self();
     job_t *job = NULL;
 
-    pthread_mutex_lock(&pool->mutex);
+    //pthread_mutex_lock(&pool->mutex);
     pthread_cleanup_push(worker_cleanup, pool);
     while (1) {
+        pthread_mutex_lock(&pool->mutex);
         while (pool->job_head == NULL) {
             pthread_cond_wait(&pool->wakecv, &pool->mutex);
         }
@@ -149,6 +168,7 @@ static void *worker_thread(void *arg)
         if (job == pool->job_tail)
             pool->job_tail = NULL;
 
+        pthread_mutex_unlock(&pool->mutex);
         job->func(job->arg);
         free(job);
     }
@@ -215,6 +235,7 @@ int thr_pool_add(thr_pool_t *pool,
         pthread_cond_broadcast(&pool->wakecv);
     } else if (pool->nthreads < pool->max) {
         /* TODO: create a new thread to do added job */
+        create_worker(pool);
     }
     pthread_mutex_unlock(&pool->mutex);
     return 0;
