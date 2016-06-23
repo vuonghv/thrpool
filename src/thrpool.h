@@ -13,7 +13,10 @@ thr_pool_t *thr_pool_create(unsigned int min_threads,
 int thr_pool_add(thr_pool_t *pool,
                  void *(*func)(void *), void *arg);
 
-void thr_pool_wait(thr_pool_t *pool);
+/*
+ * Wait for all queued jobs to complete.
+ */
+int thr_pool_wait(thr_pool_t *pool);
 
 void thr_pool_destroy(thr_pool_t *pool);
 

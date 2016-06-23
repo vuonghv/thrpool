@@ -12,8 +12,8 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    unsigned int min = 2;
-    unsigned int max = 4;
+    unsigned int min = 4;
+    unsigned int max = 7;
     unsigned int timeout = 100;
     int count = 19;
     unsigned int sleep_time = atoi(argv[1]);
@@ -24,11 +24,12 @@ int main(int argc, char *argv[])
     srand(time(NULL));
     for (int i = 0; i < count; i++) {
         thr_pool_add(pool, foo, (void *)i);
-        sleep(rand() % 3 + 1);
+        sleep(rand() % 2 + 1);
     }
 
     pthread_attr_destroy(&attr);
-    sleep(sleep_time);
+    //sleep(sleep_time);
+    thr_pool_wait(pool);
     return 0;
 }
 
