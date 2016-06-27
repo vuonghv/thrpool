@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 #define THR_POOL_NEW 0
 #define THR_POOL_WAIT (1<<0)
@@ -31,7 +30,7 @@ struct worker {
 
 struct thr_pool {
     pthread_mutex_t mutex;   /* protects the pool data */
-    pthread_cond_t wakecv;  /* signal wake up idle threads to do added jobs */
+    pthread_cond_t jobcv;  /* signal wake up idle threads to do added jobs */
     pthread_cond_t waitcv;  /* Wait for all queued jobs to complete */
     worker_t *worker;   /* list of threads performing work */
     job_t *job_head;    /* head of FIFO job queue */
@@ -127,12 +126,11 @@ static void job_cleanup(void *arg)
     }
 
     /* If run out of job and all threads is idle */
-    if (pool->job_head == NULL &&
-        pool->idle == pool->nthreads &&
-        pool->status == THR_POOL_WAIT) {
+    if (pool->status & THR_POOL_WAIT &&
+        pool->job_head == NULL &&
+        pool->idle == pool->nthreads) {
 
-        printf("WAKE UP BY #%u (idle: %u, nthreads: %u)",
-               (unsigned int)self, pool->idle, pool->nthreads);
+        pool->status &= ~THR_POOL_WAIT;
         pthread_cond_broadcast(&pool->waitcv);
     }
     pthread_mutex_unlock(&pool->mutex);
@@ -166,11 +164,8 @@ static void *worker_thread(void *arg)
     pthread_cleanup_push(worker_cleanup, pool);
     while (1) {
         while (pool->job_head == NULL) {
-            printf("THREAD #%u WAITING\n", (unsigned int)self.thread);
-            pthread_cond_wait(&pool->wakecv, &pool->mutex);
+            pthread_cond_wait(&pool->jobcv, &pool->mutex);
         }
-
-        printf("IDLE = %u\n", pool->idle);
 
         /* get a job, then do it */
         job = pool->job_head;
@@ -184,11 +179,9 @@ static void *worker_thread(void *arg)
         pool->worker = &self;
         pthread_mutex_unlock(&pool->mutex);
 
-        printf("THREAD #%u START JOB\n", (unsigned int)self.thread);
         pthread_cleanup_push(job_cleanup, pool);
         job->func(job->arg);
         pthread_cleanup_pop(1);
-        printf("THREAD #%u DONE  JOB\n", (unsigned int)self.thread);
         free(job);
         pthread_mutex_lock(&pool->mutex);
     }
@@ -212,7 +205,7 @@ thr_pool_t *thr_pool_create(unsigned int min_threads,
     }
 
     pthread_mutex_init(&pool->mutex, NULL);
-    pthread_cond_init(&pool->wakecv, NULL);
+    pthread_cond_init(&pool->jobcv, NULL);
     pthread_cond_init(&pool->waitcv, NULL);
     pool->worker = NULL;
     pool->job_head = NULL;
@@ -249,15 +242,10 @@ int thr_pool_add(thr_pool_t *pool,
         pool->job_tail->next = job;
         pool->job_tail = job;
     }
-    pthread_mutex_unlock(&pool->mutex);
 
-    pthread_mutex_lock(&pool->mutex);
     if (pool->job_head != NULL && pool->idle > 0) {
-        printf("BROADCAST... IDLE = %u\n", pool->idle);
-        pthread_cond_broadcast(&pool->wakecv);
+        pthread_cond_broadcast(&pool->jobcv);
     } else if (pool->nthreads < pool->max) {
-        /* TODO: create a new thread to do added job */
-        printf("CALLING create_worker... IDLE = %u\n", pool->idle);
         create_worker(pool);
     }
     pthread_mutex_unlock(&pool->mutex);
@@ -268,11 +256,10 @@ int thr_pool_wait(thr_pool_t *pool)
 {
     if (pool == NULL) return EINVAL;
     pthread_mutex_lock(&pool->mutex);
-    pool->status = THR_POOL_WAIT;
-    while (pool->job_head != NULL && pool->idle != pool->nthreads) {
+    pool->status |= THR_POOL_WAIT;
+    while (pool->job_head != NULL || pool->idle != pool->nthreads) {
         pthread_cond_wait(&pool->waitcv, &pool->mutex);
     }
-    printf("IDLE = %u, NTHREADS = %u\n", pool->idle, pool->nthreads);
     pthread_mutex_unlock(&pool->mutex);
     return 0;
 }
