@@ -34,10 +34,11 @@ typedef struct thr_pool {
     unsigned int idle;  /* number of idle workers */
 } thr_pool_t;
 
-thr_pool_t *thr_pool_create(unsigned int min_threads,
-                            unsigned int max_threads,
-                            unsigned int timeout,
-                            const pthread_attr_t *attr);
+int thr_pool_create(thr_pool_t *pool,
+                    unsigned int min_threads,
+                    unsigned int max_threads,
+                    unsigned int timeout,
+                    const pthread_attr_t *attr);
 
 int thr_pool_add(thr_pool_t *pool,
                  void *(*func)(void *), void *arg);

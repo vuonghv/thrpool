@@ -168,20 +168,14 @@ static void *worker_thread(void *arg)
     pthread_cleanup_pop(1);
 }
 
-thr_pool_t *thr_pool_create(unsigned int min_threads,
-                            unsigned int max_threads,
-                            unsigned int timeout,
-                            const pthread_attr_t *attr)
+int thr_pool_create(thr_pool_t *pool,
+                    unsigned int min_threads,
+                    unsigned int max_threads,
+                    unsigned int timeout,
+                    const pthread_attr_t *attr)
 {
-    if (min_threads > max_threads || max_threads < 1) {
-        errno = EINVAL;
-        return NULL;
-    }
-
-    thr_pool_t *pool = (thr_pool_t *) malloc(sizeof(thr_pool_t));
-    if (!pool) {
-        errno = ENOMEM;
-        return NULL;
+    if (min_threads > max_threads || max_threads < 1 || pool == NULL) {
+        return EINVAL;
     }
 
     pthread_mutex_init(&pool->mutex, NULL);
@@ -199,7 +193,7 @@ thr_pool_t *thr_pool_create(unsigned int min_threads,
     
     clone_attributes(&pool->attr, attr);
 
-    return pool;
+    return 0;
 }
 
 int thr_pool_add(thr_pool_t *pool,
@@ -281,5 +275,4 @@ void thr_pool_destroy(thr_pool_t *pool) {
     pthread_attr_destroy(&pool->attr);
     pthread_cond_destroy(&pool->jobcv);
     pthread_cond_destroy(&pool->waitcv);
-    free(pool);
 }
