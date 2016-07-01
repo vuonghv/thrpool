@@ -34,20 +34,69 @@ typedef struct thr_pool {
     unsigned int idle;  /* number of idle workers */
 } thr_pool_t;
 
+/** @brief Initialize and create a thread pool.
+ *
+ *  This function initializes and create a thread pool before we can use it.
+ *  On success, thr_pool_create() returns 0; on error, it returns
+ *  an error number, and the contents of *pool are undefined.
+ *
+ *  @param[out] pool        The pointer to thr_pool_t object
+ *  @param[in]  min_threads The minimum number of threads kept in the pool,
+ *                          always available to perform work requests.
+ *  @param[in]  max_threads The maximum number of threads that can be in
+ *                          the pool, performing work requests.
+ *  @param[in]  timeout     The number of seconds excess idle worker threads
+ *                          linger before exiting. If timeout is less than 0,
+ *                          idle threads will not exit.
+ *  @param[in]  attr        Attributes of all worker threads.
+ *                          It can be destroyed after calling thr_pool_create().
+ *                          If attr is NULL, then all worker threads is created
+ *                          with the default attributes.
+ *
+ *  @return                 If success, return 0; otherwise return error number
+ */
 int thr_pool_create(thr_pool_t *pool,
                     unsigned int min_threads,
                     unsigned int max_threads,
                     unsigned int timeout,
                     const pthread_attr_t *attr);
 
+/** @brief Add a work request to the thread pool job queue.
+ *
+ *  If there are idle worker threads, awaken one to perform the job.
+ *  Else if the maximum number of workers has not been reached,
+ *  create a new worker thread to perform the job.
+ *  Else just return after adding the job to the queue;
+ *  an existing worker thread will perform the job when
+ *  it finishes the job it is currently performing.
+ *  The job is performed as if a new thread were created for it:
+ *      pthread_create(NULL, attr, void *(*func)(void *), void *arg);
+ *  On success, thr_pool_add() returns 0; otherwise returns an error number.
+ *
+ *  @param[in] pool The pointer to thr_pool_t object
+ *  @param[in] func The function that will be excuted by a worker thread.
+ *  @param[in] arg  The argument is passed to func(), i.e func(arg)
+ *
+ *  @return         On success return 0; otherwise return an error number.
+ */
 int thr_pool_add(thr_pool_t *pool,
                  void *(*func)(void *), void *arg);
 
-/*
- * Wait for all queued jobs to complete.
+/** @brief Wait for all queued jobs to complete.
+ *
+ *  @param[in] pool The pointer to thr_pool_t object
+ *  @return On success, return 0; otherwise return error number.
  */
 int thr_pool_wait(thr_pool_t *pool);
 
+/** @brief Cancel all queued jobs and destroy the pool.
+ *
+ *  This function should be called after calling thr_pool_wait() to release
+ *  all worker threads. Calling this function when the job queue is not empty
+ *  can lead to inconsistent state for program.
+ *
+ *  @param[in] pool The pointer to thr_pool_t object
+ */
 void thr_pool_destroy(thr_pool_t *pool);
 
 #endif  /* _THRPOOL_H */
