@@ -22,6 +22,7 @@ typedef struct thr_pool {
     pthread_mutex_t mutex;   /* protects the pool data */
     pthread_cond_t jobcv;  /* signal wake up idle threads to do added jobs */
     pthread_cond_t waitcv;  /* Wait for all queued jobs to complete */
+    pthread_cond_t busycv;  /* Wait for the last thread clean up */
     worker_t *worker;   /* list of threads performing work */
     job_t *job_head;    /* head of FIFO job queue */
     job_t *job_tail;    /* tail of FIFO job queue */

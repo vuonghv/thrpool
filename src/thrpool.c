@@ -64,6 +64,11 @@ static void worker_cleanup(void *arg)
     --pool->nthreads;
     if (pool->nthreads < pool->min && !(pool->status & THR_POOL_DESTROY))
         create_worker(pool);
+
+    /* If this is the last thread, wake up thr_pool_destroy */
+    if ((pool->status & THR_POOL_DESTROY) && pool->nthreads == 0) {
+        pthread_cond_broadcast(&pool->busycv);
+    }
 #ifdef DEBUG
     printf("CLEANUP THREAD #%u\n", (unsigned int)pthread_self());
 #endif
@@ -142,7 +147,13 @@ static void *worker_thread(void *arg)
         pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
         while (pool->job_head == NULL && !(pool->status & THR_POOL_DESTROY)) {
+#ifdef DEBUG
+            printf("#%u waiting\n", (unsigned int)self.thread);
+#endif
             pthread_cond_wait(&pool->jobcv, &pool->mutex);
+#ifdef DEBUG
+            printf("#%u wake up\n", (unsigned int)self.thread);
+#endif
         }
 
         if (pool->status & THR_POOL_DESTROY) break;
@@ -181,6 +192,7 @@ int thr_pool_create(thr_pool_t *pool,
     pthread_mutex_init(&pool->mutex, NULL);
     pthread_cond_init(&pool->jobcv, NULL);
     pthread_cond_init(&pool->waitcv, NULL);
+    pthread_cond_init(&pool->busycv, NULL);
     pool->worker = NULL;
     pool->job_head = NULL;
     pool->job_tail = NULL;
@@ -246,6 +258,7 @@ void thr_pool_destroy(thr_pool_t *pool) {
     pool->status |= THR_POOL_DESTROY;
 #ifdef DEBUG
     printf("%s: status = %X\n", __func__, pool->status);
+    printf("%s: nthreads = %u\n", __func__, pool->nthreads);
 #endif
     
     /* Cancel all active thread */
@@ -270,6 +283,11 @@ void thr_pool_destroy(thr_pool_t *pool) {
 
     /* wake up all idle thread */
     pthread_cond_broadcast(&pool->jobcv);
+
+    /* Wait for the last worker thread cleanup done */
+    while (pool->nthreads > 0) {
+        pthread_cond_wait(&pool->busycv, &pool->mutex);
+    }
     pthread_cleanup_pop(1);
 
     pthread_attr_destroy(&pool->attr);
