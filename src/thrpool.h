@@ -19,20 +19,20 @@ typedef struct worker {
 } worker_t;
 
 typedef struct thr_pool {
-    pthread_mutex_t mutex;   /* protects the pool data */
-    pthread_cond_t jobcv;  /* signal wake up idle threads to do added jobs */
+    pthread_mutex_t mutex;  /* protects the pool data */
+    pthread_cond_t jobcv;   /* signal wake up idle threads to do added jobs */
     pthread_cond_t waitcv;  /* Wait for all queued jobs to complete */
     pthread_cond_t busycv;  /* Wait for the last thread clean up */
-    worker_t *worker;   /* list of threads performing work */
-    job_t *job_head;    /* head of FIFO job queue */
-    job_t *job_tail;    /* tail of FIFO job queue */
+    worker_t *worker;       /* list of threads performing work */
+    job_t *job_head;        /* head of FIFO job queue */
+    job_t *job_tail;        /* tail of FIFO job queue */
     pthread_attr_t attr;    /* attributes of the worker threads */
     int status;
-    unsigned int timeout; /* seconds before idle workers exit */
-    unsigned int min;   /* minimum number of worker threads */
-    unsigned int max;   /* maximum number of worker threads */
-    unsigned int nthreads;  /* current number of worker threads */
-    unsigned int idle;  /* number of idle workers */
+    int timeout;    /* seconds before idle workers exit */
+    int min;        /* minimum number of worker threads */
+    int max;        /* maximum number of worker threads */
+    int nthreads;   /* current number of worker threads */
+    int idle;       /* number of idle workers */
 } thr_pool_t;
 
 /** @brief Initialize and create a thread pool.
@@ -57,9 +57,9 @@ typedef struct thr_pool {
  *  @return                 If success, return 0; otherwise return error number
  */
 int thr_pool_create(thr_pool_t *pool,
-                    unsigned int min_threads,
-                    unsigned int max_threads,
-                    unsigned int timeout,
+                    int min_threads,
+                    int max_threads,
+                    int timeout,
                     const pthread_attr_t *attr);
 
 /** @brief Add a work request to the thread pool job queue.

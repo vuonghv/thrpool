@@ -9,9 +9,9 @@ void *task(void *arg);
 
 int main(void)
 {
-    unsigned int min_threads = 2;
-    unsigned int max_threads = 4;
-    unsigned int timeout = 60;    
+    int min_threads = 2;
+    int max_threads = 4;
+    int timeout = 60;    
     int err = 0;
 
     /* Create a thread pool with default attributes, NULL */

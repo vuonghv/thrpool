@@ -69,7 +69,7 @@ static void worker_cleanup(void *arg)
     if ((pool->status & THR_POOL_DESTROY) && pool->nthreads == 0) {
         pthread_cond_broadcast(&pool->busycv);
     }
-#ifdef DEBUG
+#ifdef THR_POOL_DEBUG
     printf("CLEANUP THREAD #%u\n", (unsigned int)pthread_self());
 #endif
     pthread_mutex_unlock(&pool->mutex);
@@ -147,11 +147,11 @@ static void *worker_thread(void *arg)
         pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
         while (pool->job_head == NULL && !(pool->status & THR_POOL_DESTROY)) {
-#ifdef DEBUG
+#ifdef THR_POOL_DEBUG
             printf("#%u waiting\n", (unsigned int)self.thread);
 #endif
             pthread_cond_wait(&pool->jobcv, &pool->mutex);
-#ifdef DEBUG
+#ifdef THR_POOL_DEBUG
             printf("#%u wake up\n", (unsigned int)self.thread);
 #endif
         }
@@ -180,9 +180,9 @@ static void *worker_thread(void *arg)
 }
 
 int thr_pool_create(thr_pool_t *pool,
-                    unsigned int min_threads,
-                    unsigned int max_threads,
-                    unsigned int timeout,
+                    int min_threads,
+                    int max_threads,
+                    int timeout,
                     const pthread_attr_t *attr)
 {
     if (min_threads > max_threads || max_threads < 1 || pool == NULL) {
@@ -256,7 +256,7 @@ void thr_pool_destroy(thr_pool_t *pool) {
     pthread_mutex_lock(&pool->mutex);
     pthread_cleanup_push(pthread_mutex_unlock, &pool->mutex);
     pool->status |= THR_POOL_DESTROY;
-#ifdef DEBUG
+#ifdef THR_POOL_DEBUG
     printf("%s: status = %X\n", __func__, pool->status);
     printf("%s: nthreads = %u\n", __func__, pool->nthreads);
 #endif
@@ -267,7 +267,7 @@ void thr_pool_destroy(thr_pool_t *pool) {
         cur_worker = pool->worker;
         pool->worker = pool->worker->next;
         pthread_cancel(cur_worker->thread);
-#ifdef DEBUG
+#ifdef THR_POOL_DEBUG
         printf("CANCELED THREAD #%u\n", (unsigned int)cur_worker->thread);
 #endif
     }
