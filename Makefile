@@ -1,10 +1,11 @@
-CFLAGS = -std=c99 -Wall -pthread
+CFLAGS = -std=c99 -Wall
+LIBS = -pthread
 
 test: test_thrpool
 	./test_thrpool
 
 test_thrpool: test_thrpool.o thrpool.o
-	$(CC) $(CFLAGS) test_thrpool.o thrpool.o -o test_thrpool
+	$(CC) $(CFLAGS) $(LIBS) test_thrpool.o thrpool.o -o test_thrpool
 
 test_thrpool.o: ./test/test_thrpool.c
 	$(CC) $(CFLAGS) -c ./test/test_thrpool.c

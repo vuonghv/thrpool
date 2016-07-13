@@ -102,6 +102,11 @@ static void job_cleanup(void *arg)
     }
 
     /* If run out of job and all threads is idle */
+#ifdef THR_POOL_DEBUG
+    printf("%s: #%u  status = %02X,  idle = %d,  nthreads = %d\n",
+           __func__, (unsigned int) pthread_self(),
+           pool->status, pool->idle, pool->nthreads);
+#endif
     if (pool->status & THR_POOL_WAIT &&
         pool->job_head == NULL &&
         pool->idle == pool->nthreads) {
@@ -138,6 +143,10 @@ static void *worker_thread(void *arg)
     pthread_mutex_lock(&pool->mutex);
     pthread_cleanup_push(worker_cleanup, pool);
     ++pool->idle;   /* assume this thread is idle */
+#ifdef THR_POOL_DEBUG
+    printf("%s: #%u  idle = %d\n",
+           __func__, (unsigned int)pthread_self(), pool->idle);
+#endif
     while (1) {
         /*
          * we don't know what the previous job do with cancelability state.
@@ -244,6 +253,10 @@ int thr_pool_wait(thr_pool_t *pool)
     pthread_mutex_lock(&pool->mutex);
     pool->status |= THR_POOL_WAIT;
     while (pool->job_head != NULL || pool->idle != pool->nthreads) {
+#ifdef THR_POOL_DEBUG
+        printf("%s: idle = %d,  nthreads = %d\n",
+               __func__, pool->idle, pool->nthreads);
+#endif
         pthread_cond_wait(&pool->waitcv, &pool->mutex);
     }
     pthread_mutex_unlock(&pool->mutex);
@@ -257,8 +270,8 @@ void thr_pool_destroy(thr_pool_t *pool) {
     pthread_cleanup_push(pthread_mutex_unlock, &pool->mutex);
     pool->status |= THR_POOL_DESTROY;
 #ifdef THR_POOL_DEBUG
-    printf("%s: status = %X\n", __func__, pool->status);
-    printf("%s: nthreads = %u\n", __func__, pool->nthreads);
+    printf("%s: status = 0x%02X,  nthreads = %d\n",
+            __func__, pool->status, pool->nthreads);
 #endif
     
     /* Cancel all active thread */
@@ -282,6 +295,9 @@ void thr_pool_destroy(thr_pool_t *pool) {
     }
 
     /* wake up all idle thread */
+#ifdef THR_POOL_DEBUG
+    printf("%s: broadcast pool->jobcv\n", __func__);
+#endif
     pthread_cond_broadcast(&pool->jobcv);
 
     /* Wait for the last worker thread cleanup done */
