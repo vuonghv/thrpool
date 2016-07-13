@@ -54,7 +54,6 @@ void test_thr_pool(void)
     assert((pool.status & THR_POOL_WAIT) == 0);
     assert(pool.job_head == NULL);
     assert(pool.job_tail == NULL);
-    assert(pool.idle == pool.nthreads);
     assert(pool.worker == NULL);
 
     thr_pool_destroy(&pool);

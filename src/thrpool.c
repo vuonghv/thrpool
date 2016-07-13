@@ -109,7 +109,7 @@ static void job_cleanup(void *arg)
 #endif
     if (pool->status & THR_POOL_WAIT &&
         pool->job_head == NULL &&
-        pool->idle == pool->nthreads) {
+        pool->worker == NULL) {
 
         pool->status &= ~THR_POOL_WAIT;
         pthread_cond_broadcast(&pool->waitcv);
@@ -252,7 +252,7 @@ int thr_pool_wait(thr_pool_t *pool)
     if (pool == NULL) return EINVAL;
     pthread_mutex_lock(&pool->mutex);
     pool->status |= THR_POOL_WAIT;
-    while (pool->job_head != NULL || pool->idle != pool->nthreads) {
+    while (pool->job_head != NULL || pool->worker != NULL) {
 #ifdef THR_POOL_DEBUG
         printf("%s: idle = %d,  nthreads = %d\n",
                __func__, pool->idle, pool->nthreads);
