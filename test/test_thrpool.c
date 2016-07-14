@@ -1,5 +1,5 @@
 #include "../src/thrpool.h"
-#include <assert.h>
+#include "../src/thrpool_assert.h"
 
 int counter = 0;
 pthread_mutex_t counter_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -15,6 +15,7 @@ void test_thr_pool(void);
 int main(int argc, char *argv[])
 {
     test_thr_pool();
+    pthread_mutex_destroy(&counter_lock);
     return 0;
 }
 
@@ -29,39 +30,39 @@ void test_thr_pool(void)
     int err = thr_pool_create(&pool, min_threads, max_threads, timeout, NULL);
 
     /* test thr_pool_create */
-    assert(err == 0);
-    assert(pool.min == min_threads);
-    assert(pool.max == max_threads);
-    assert(pool.timeout == timeout);
-    assert(pool.status == THR_POOL_NEW);
-    assert(pool.worker == NULL);
-    assert(pool.job_head == NULL);
-    assert(pool.job_tail == NULL);
-    assert(pool.nthreads == 0);
-    assert(pool.idle == 0);
+    ASSERT_EQ_INT(err, 0);
+    ASSERT_EQ_INT(pool.min, min_threads);
+    ASSERT_EQ_INT(pool.max, max_threads);
+    ASSERT_EQ_INT(pool.timeout, timeout);
+    ASSERT_EQ_INT(pool.status, THR_POOL_NEW);
+    ASSERT_EQ_INT(pool.nthreads, 0);
+    ASSERT_EQ_INT(pool.idle, 0);
+    ASSERT_IS_NULL(pool.worker);
+    ASSERT_IS_NULL(pool.job_head);
+    ASSERT_IS_NULL(pool.job_tail);
 
     counter = 0;
     for (int i = 0; i < num_jobs; i++) {
         thr_pool_add(&pool, counter_func, &counter);
     }
 
-    assert(pool.nthreads <= max_threads);
+    ASSERT_LE_INT(pool.nthreads, max_threads);
 
     thr_pool_wait(&pool);
 
     /* test thr_pool_add and thr_pool_wait */
-    assert(counter == num_jobs);
-    assert((pool.status & THR_POOL_WAIT) == 0);
-    assert(pool.job_head == NULL);
-    assert(pool.job_tail == NULL);
-    assert(pool.worker == NULL);
+    ASSERT_EQ_INT(counter, num_jobs);
+    ASSERT_EQ_INT(pool.status & THR_POOL_WAIT, 0);
+    ASSERT_IS_NULL(pool.job_head);
+    ASSERT_IS_NULL(pool.job_tail);
+    ASSERT_IS_NULL(pool.worker);
 
     thr_pool_destroy(&pool);
 
     /* test thr_pool_destroy */
-    assert(pool.status & THR_POOL_DESTROY);
-    assert(pool.nthreads == 0);
-    assert(pool.worker == NULL);
-    assert(pool.job_head == NULL);
-    assert(pool.job_tail == NULL);
+    ASSERT_NE_INT(pool.status & THR_POOL_DESTROY, 0);
+    ASSERT_EQ_INT(pool.nthreads, 0);
+    ASSERT_IS_NULL(pool.worker);
+    ASSERT_IS_NULL(pool.job_head);
+    ASSERT_IS_NULL(pool.job_tail);
 }
