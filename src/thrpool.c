@@ -7,9 +7,7 @@
 #endif
 
 #include "thrpool.h"
-#include <stdlib.h>
 #include <errno.h>
-#include <stdlib.h>
 #include <stdio.h>
 
 #ifdef THR_POOL_DEBUG

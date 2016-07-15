@@ -66,11 +66,10 @@ void test_thr_pool(void)
     thr_pool_destroy(&pool);
 
     /* test thr_pool_destroy */
-    pthread_mutex_lock(&pool.mutex);
     ASSERT_NE_INT(pool.status & THR_POOL_DESTROY, 0);
     ASSERT_EQ_INT(pool.nthreads, 0);
+    ASSERT_EQ_INT(pool.idle, 0);
     ASSERT_IS_NULL(pool.worker);
     ASSERT_IS_NULL(pool.job_head);
     ASSERT_IS_NULL(pool.job_tail);
-    pthread_mutex_unlock(&pool.mutex);
 }
