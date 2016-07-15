@@ -12,6 +12,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#ifdef THR_POOL_DEBUG
+#define DEBUG(format, ...)                                     \
+    fprintf(stderr, "[DEBUG] %s:%s:%d: " format "\n",          \
+            __FILE__, __func__, __LINE__, ##__VA_ARGS__)
+#else
+#define DEBUG(format, ...)
+#endif
+
 static void * worker_thread(void *arg);
 static int create_worker(void *arg);
 
@@ -69,9 +77,7 @@ static void worker_cleanup(void *arg)
     if ((pool->status & THR_POOL_DESTROY) && pool->nthreads == 0) {
         pthread_cond_broadcast(&pool->busycv);
     }
-#ifdef THR_POOL_DEBUG
-    printf("CLEANUP THREAD #%u\n", (unsigned int)pthread_self());
-#endif
+    DEBUG("CLEANUP THREAD #%u", (unsigned int) pthread_self());
     pthread_mutex_unlock(&pool->mutex);
 }
 
@@ -86,33 +92,29 @@ static void job_cleanup(void *arg)
     ++pool->idle;
 
     /* TODO: Need to refactor this snippet code */
-    worker_t *pre_worker = pool->worker;
-    worker_t *cur_worker = pool->worker;
-    while (cur_worker != NULL) {
-        if (pthread_equal(cur_worker->thread, self)) {
-            if (pre_worker == pool->worker)
-                pool->worker = cur_worker->next;
+    worker_t *prev_worker = NULL;
+    worker_t *curr_worker = pool->worker;
+    while (curr_worker != NULL) {
+        if (pthread_equal(curr_worker->thread, self)) {
+            if (curr_worker == pool->worker)
+                pool->worker = curr_worker->next;
             else
-                pre_worker->next = cur_worker->next;
+                prev_worker->next = curr_worker->next;
 
             break;
         }
-        pre_worker = cur_worker;
-        cur_worker = cur_worker->next;
+        prev_worker = curr_worker;
+        curr_worker = curr_worker->next;
     }
 
     /* If run out of job and all threads is idle */
-#ifdef THR_POOL_DEBUG
-    printf("%s: #%u  status = %02X,  idle = %d,  nthreads = %d\n",
-           __func__, (unsigned int) pthread_self(),
-           pool->status, pool->idle, pool->nthreads);
-#endif
     if (pool->status & THR_POOL_WAIT &&
         pool->job_head == NULL &&
         pool->worker == NULL) {
 
         pool->status &= ~THR_POOL_WAIT;
         pthread_cond_broadcast(&pool->waitcv);
+        DEBUG("#%u broadcast pool->waitcv", (unsigned int) self);
     }
     pthread_mutex_unlock(&pool->mutex);
 }
@@ -143,10 +145,6 @@ static void *worker_thread(void *arg)
     pthread_mutex_lock(&pool->mutex);
     pthread_cleanup_push(worker_cleanup, pool);
     ++pool->idle;   /* assume this thread is idle */
-#ifdef THR_POOL_DEBUG
-    printf("%s: #%u  idle = %d\n",
-           __func__, (unsigned int)pthread_self(), pool->idle);
-#endif
     while (1) {
         /*
          * we don't know what the previous job do with cancelability state.
@@ -156,13 +154,9 @@ static void *worker_thread(void *arg)
         pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
         while (pool->job_head == NULL && !(pool->status & THR_POOL_DESTROY)) {
-#ifdef THR_POOL_DEBUG
-            printf("#%u waiting\n", (unsigned int)self.thread);
-#endif
+            DEBUG("#%u WAITING", (unsigned int) self.thread);
             pthread_cond_wait(&pool->jobcv, &pool->mutex);
-#ifdef THR_POOL_DEBUG
-            printf("#%u wake up\n", (unsigned int)self.thread);
-#endif
+            DEBUG("#%u WAKE UP", (unsigned int) self.thread);
         }
 
         if (pool->status & THR_POOL_DESTROY) break;
@@ -253,11 +247,9 @@ int thr_pool_wait(thr_pool_t *pool)
     pthread_mutex_lock(&pool->mutex);
     pool->status |= THR_POOL_WAIT;
     while (pool->job_head != NULL || pool->worker != NULL) {
-#ifdef THR_POOL_DEBUG
-        printf("%s: idle = %d,  nthreads = %d\n",
-               __func__, pool->idle, pool->nthreads);
-#endif
+        DEBUG("idle = %d,  nthreads = %d", pool->idle, pool->nthreads);
         pthread_cond_wait(&pool->waitcv, &pool->mutex);
+        DEBUG("WAKE UP, idle = %d,  nthreads = %d", pool->idle, pool->nthreads);
     }
     pthread_mutex_unlock(&pool->mutex);
     return 0;
@@ -269,10 +261,6 @@ void thr_pool_destroy(thr_pool_t *pool) {
     pthread_mutex_lock(&pool->mutex);
     pthread_cleanup_push(pthread_mutex_unlock, &pool->mutex);
     pool->status |= THR_POOL_DESTROY;
-#ifdef THR_POOL_DEBUG
-    printf("%s: status = 0x%02X,  nthreads = %d\n",
-            __func__, pool->status, pool->nthreads);
-#endif
     
     /* Cancel all active thread */
     worker_t *cur_worker;
@@ -280,9 +268,7 @@ void thr_pool_destroy(thr_pool_t *pool) {
         cur_worker = pool->worker;
         pool->worker = pool->worker->next;
         pthread_cancel(cur_worker->thread);
-#ifdef THR_POOL_DEBUG
-        printf("CANCELED THREAD #%u\n", (unsigned int)cur_worker->thread);
-#endif
+        DEBUG("CANCELED THREAD #%u", (unsigned int) cur_worker->thread);
     }
 
     /* Destroy the job queue */
@@ -295,9 +281,7 @@ void thr_pool_destroy(thr_pool_t *pool) {
     }
 
     /* wake up all idle thread */
-#ifdef THR_POOL_DEBUG
-    printf("%s: broadcast pool->jobcv\n", __func__);
-#endif
+    DEBUG("broadcast pool->jobcv");
     pthread_cond_broadcast(&pool->jobcv);
 
     /* Wait for the last worker thread cleanup done */

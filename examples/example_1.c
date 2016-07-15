@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#define NUM_TASK 5
+#define NUM_TASK 6
 
 void *task(void *arg);
 
@@ -28,7 +28,7 @@ int main(void)
     /* Add job to thread pool */
     printf("Starting add %d tasks to the thread pool\n", NUM_TASK);
     for (int i = 0; i < NUM_TASK; ++i) {
-        thr_pool_add(&pool, task, (void *)i);
+        thr_pool_add(&pool, task, (void *)(i+1));
     }
     printf("Finish adding tasks.\n");
 
@@ -37,8 +37,8 @@ int main(void)
     printf("All tasks have done.\n");
 
     /* destroy pool after using; destroy all pool's living threads */
-    printf("Destroy the thread pool.\n");
     thr_pool_destroy(&pool);
+    printf("Destroyed the thread pool.\n");
 
     return 0;
 }
