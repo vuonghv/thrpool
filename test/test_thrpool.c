@@ -30,6 +30,7 @@ void test_thr_pool(void)
     int err = thr_pool_create(&pool, min_threads, max_threads, timeout, NULL);
 
     /* test thr_pool_create */
+    pthread_mutex_lock(&pool.mutex);
     ASSERT_EQ_INT(err, 0);
     ASSERT_EQ_INT(pool.min, min_threads);
     ASSERT_EQ_INT(pool.max, max_threads);
@@ -40,29 +41,36 @@ void test_thr_pool(void)
     ASSERT_IS_NULL(pool.worker);
     ASSERT_IS_NULL(pool.job_head);
     ASSERT_IS_NULL(pool.job_tail);
+    pthread_mutex_unlock(&pool.mutex);
 
     counter = 0;
     for (int i = 0; i < num_jobs; i++) {
         thr_pool_add(&pool, counter_func, &counter);
     }
 
+    pthread_mutex_lock(&pool.mutex);
     ASSERT_LE_INT(pool.nthreads, max_threads);
+    pthread_mutex_unlock(&pool.mutex);
 
     thr_pool_wait(&pool);
 
     /* test thr_pool_add and thr_pool_wait */
+    pthread_mutex_lock(&pool.mutex);
     ASSERT_EQ_INT(counter, num_jobs);
     ASSERT_EQ_INT(pool.status & THR_POOL_WAIT, 0);
     ASSERT_IS_NULL(pool.job_head);
     ASSERT_IS_NULL(pool.job_tail);
     ASSERT_IS_NULL(pool.worker);
+    pthread_mutex_unlock(&pool.mutex);
 
     thr_pool_destroy(&pool);
 
     /* test thr_pool_destroy */
+    pthread_mutex_lock(&pool.mutex);
     ASSERT_NE_INT(pool.status & THR_POOL_DESTROY, 0);
     ASSERT_EQ_INT(pool.nthreads, 0);
     ASSERT_IS_NULL(pool.worker);
     ASSERT_IS_NULL(pool.job_head);
     ASSERT_IS_NULL(pool.job_tail);
+    pthread_mutex_unlock(&pool.mutex);
 }

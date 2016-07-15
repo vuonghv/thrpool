@@ -89,7 +89,6 @@ static void job_cleanup(void *arg)
     pthread_t self = pthread_self();
 
     pthread_mutex_lock(&pool->mutex);
-    ++pool->idle;
 
     /* TODO: Need to refactor this snippet code */
     worker_t *prev_worker = NULL;
@@ -144,7 +143,6 @@ static void *worker_thread(void *arg)
 
     pthread_mutex_lock(&pool->mutex);
     pthread_cleanup_push(worker_cleanup, pool);
-    ++pool->idle;   /* assume this thread is idle */
     while (1) {
         /*
          * we don't know what the previous job do with cancelability state.
@@ -155,7 +153,9 @@ static void *worker_thread(void *arg)
 
         while (pool->job_head == NULL && !(pool->status & THR_POOL_DESTROY)) {
             DEBUG("#%u WAITING", (unsigned int) self.thread);
+            ++pool->idle;
             pthread_cond_wait(&pool->jobcv, &pool->mutex);
+            --pool->idle;
             DEBUG("#%u WAKE UP", (unsigned int) self.thread);
         }
 
@@ -168,7 +168,6 @@ static void *worker_thread(void *arg)
         if (job == pool->job_tail)
             pool->job_tail = NULL;
 
-        --pool->idle; /* the thread had a job to do */
         self.next = pool->worker;
         pool->worker = &self;
         pthread_mutex_unlock(&pool->mutex);
