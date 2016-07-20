@@ -7,58 +7,55 @@
 #endif
 
 #include "thrpool.h"
+#include "thrpool_assert.h"
+#include <stdlib.h>
 #include <errno.h>
-#include <stdio.h>
 
-#ifdef THR_POOL_DEBUG
-#define DEBUG(format, ...)                                     \
-    fprintf(stderr, "[DEBUG] %s:%s:%d: " format "\n",          \
-            __FILE__, __func__, __LINE__, ##__VA_ARGS__)
-#else
-#define DEBUG(format, ...)
-#endif
-
+static void clone_pthread_attr(pthread_attr_t *dst,
+                               const pthread_attr_t *src);
+static void worker_cleanup(void *arg);
+static void job_cleanup(void *arg);
 static void * worker_thread(void *arg);
 static int create_worker(void *arg);
 
 /*
- * Copy all attributes from src_attr to dst_attr.
- * If src_attr is NULL, initialize dst_attr with default values.
+ * Copy all attributes from src to dst.
+ * If src is NULL, initialize dst with default values.
  */
-static void clone_attributes(pthread_attr_t *dst_attr,
-                             const pthread_attr_t *src_attr)
+static void clone_pthread_attr(pthread_attr_t *dst,
+                               const pthread_attr_t *src)
 {
-    pthread_attr_init(dst_attr);
-    if (src_attr == NULL) return;
+    pthread_attr_init(dst);
+    if (src == NULL) return;
 
     size_t size;
     void *addr;
-    pthread_attr_getstack(src_attr, &addr, &size);
-    pthread_attr_setstack(dst_attr, addr, size);
+    pthread_attr_getstack(src, &addr, &size);
+    pthread_attr_setstack(dst, addr, size);
 
-    pthread_attr_getguardsize(src_attr, &size);
-    pthread_attr_setguardsize(dst_attr, size);
+    pthread_attr_getguardsize(src, &size);
+    pthread_attr_setguardsize(dst, size);
 
     struct sched_param param;
-    pthread_attr_getschedparam(src_attr, &param);
-    pthread_attr_setschedparam(dst_attr, &param);
+    pthread_attr_getschedparam(src, &param);
+    pthread_attr_setschedparam(dst, &param);
 
     int value;
-    pthread_attr_getdetachstate(src_attr, &value);
-    pthread_attr_setdetachstate(dst_attr, value);
+    pthread_attr_getdetachstate(src, &value);
+    pthread_attr_setdetachstate(dst, value);
 
-    pthread_attr_getschedpolicy(src_attr, &value);
-    pthread_attr_setschedpolicy(dst_attr, value);
+    pthread_attr_getschedpolicy(src, &value);
+    pthread_attr_setschedpolicy(dst, value);
 
-    pthread_attr_getinheritsched(src_attr, &value);
-    pthread_attr_setinheritsched(dst_attr, value);
+    pthread_attr_getinheritsched(src, &value);
+    pthread_attr_setinheritsched(dst, value);
 
-    pthread_attr_getscope(src_attr, &value);
-    pthread_attr_setdetachstate(dst_attr, value);
+    pthread_attr_getscope(src, &value);
+    pthread_attr_setdetachstate(dst, value);
 
     cpu_set_t cpuset;
-    pthread_attr_getaffinity_np(src_attr, sizeof(cpu_set_t), &cpuset);
-    pthread_attr_setaffinity_np(dst_attr, sizeof(cpu_set_t), &cpuset);
+    pthread_attr_getaffinity_np(src, sizeof(cpu_set_t), &cpuset);
+    pthread_attr_setaffinity_np(dst, sizeof(cpu_set_t), &cpuset);
 }
 
 static void worker_cleanup(void *arg)
@@ -203,7 +200,7 @@ int thr_pool_create(thr_pool_t *pool,
     pool->nthreads = 0;
     pool->idle = 0;
     
-    clone_attributes(&pool->attr, attr);
+    clone_pthread_attr(&pool->attr, attr);
 
     return 0;
 }

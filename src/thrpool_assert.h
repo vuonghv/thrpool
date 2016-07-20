@@ -14,6 +14,14 @@
 #define STR(arg) #arg
 #define ASSERT(expr) assert(expr)
 
+#ifdef THR_POOL_DEBUG
+#define DEBUG(format, ...)                                     \
+    fprintf(stderr, "[DEBUG] %s:%s:%d: " format "\n",          \
+            __FILE__, __func__, __LINE__, ##__VA_ARGS__)
+#else
+#define DEBUG(format, ...)
+#endif
+
 /* integer: assert(a rop b) */
 #define __ASSERT_ROP_INT(a, b, rop)                                         \
     do {                                                                    \
