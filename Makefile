@@ -1,6 +1,6 @@
 AR = ar
 ARFLAGS = crv
-CFLAGS = -std=c99 -Wall -DTHR_POOL_DEBUG
+CFLAGS = -std=c99 -Wall
 LIBS = -pthread -lrt
 INCLUDE = ./src
 SRC_DIR = ./src

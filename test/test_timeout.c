@@ -9,8 +9,8 @@ void *foo_task(void *arg);
 
 int main(void)
 {
-    //test_positive_timeout();
     test_negative_timeout();
+    test_positive_timeout();
     return 0;
 }
 

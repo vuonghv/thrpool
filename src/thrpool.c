@@ -150,7 +150,6 @@ static void *worker_thread(void *arg)
         while (pool->job_head == NULL &&
                !(pool->status & THR_POOL_DESTROY) &&
                rc == 0) {
-            DEBUG("#%u WAITING", (unsigned int) self.thread);
             ++pool->idle;
             if (pool->timeout < 0) {
                 rc = pthread_cond_wait(&pool->jobcv, &pool->mutex);
@@ -160,7 +159,6 @@ static void *worker_thread(void *arg)
                 rc = pthread_cond_timedwait(&pool->jobcv, &pool->mutex, &ts);
             }
             --pool->idle;
-            DEBUG("#%u WAKE UP", (unsigned int) self.thread);
         }
 
         if (pool->status & THR_POOL_DESTROY) break;
@@ -184,12 +182,15 @@ static void *worker_thread(void *arg)
             pthread_cleanup_pop(1);
             free(job);
             pthread_mutex_lock(&pool->mutex);
+            rc = 0;
             continue;
         }
 
         if (rc == ETIMEDOUT && pool->nthreads > pool->min) break;
+        rc = 0;
     }
     pthread_cleanup_pop(1);
+    return NULL;
 }
 
 int thr_pool_create(thr_pool_t *pool,
