@@ -1,5 +1,6 @@
 #include "../src/thrpool.h"
 #include "../src/thrpool_assert.h"
+#include <stdlib.h>
 
 int counter = 0;
 pthread_mutex_t counter_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -8,11 +9,12 @@ void *counter_func(void *arg) {
     pthread_mutex_lock(&counter_lock);
     ++counter;
     pthread_mutex_unlock(&counter_lock);
+    return arg;
 }
 
 void test_thr_pool(void);
 
-int main(int argc, char *argv[])
+int main(void)
 {
     test_thr_pool();
     pthread_mutex_destroy(&counter_lock);
@@ -25,9 +27,14 @@ void test_thr_pool(void)
     int max_threads = 4;
     int timeout = 60;
     int num_jobs = 15;
+    int err = 0;
 
     thr_pool_t pool;
-    int err = thr_pool_create(&pool, min_threads, max_threads, timeout, NULL);
+    err = thr_pool_create(&pool, min_threads, max_threads, timeout, NULL);
+    if (err) {
+        fprintf(stderr, "thr_pool_create() failed!\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* test thr_pool_create */
     pthread_mutex_lock(&pool.mutex);
