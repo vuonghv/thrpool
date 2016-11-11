@@ -133,8 +133,9 @@ static void *worker_thread(void *arg)
     if (arg == NULL) return NULL;
     thr_pool_t *pool = (thr_pool_t *)arg;
     job_t *job = NULL;
-    worker_t self;
-    self.thread = pthread_self();
+    worker_t self = { .thread = pthread_self(), .next = NULL };
+    int rc = 0;
+    struct timespec ts;
 
     pthread_mutex_lock(&pool->mutex);
     pthread_cleanup_push(worker_cleanup, pool);
@@ -146,34 +147,50 @@ static void *worker_thread(void *arg)
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
-        while (pool->job_head == NULL && !(pool->status & THR_POOL_DESTROY)) {
-            DEBUG("#%u WAITING", (unsigned int) self.thread);
+        while (pool->job_head == NULL &&
+               !(pool->status & THR_POOL_DESTROY) &&
+               rc == 0) {
             ++pool->idle;
-            pthread_cond_wait(&pool->jobcv, &pool->mutex);
+            if (pool->timeout < 0) {
+                rc = pthread_cond_wait(&pool->jobcv, &pool->mutex);
+            } else {
+                clock_gettime(CLOCK_REALTIME, &ts);
+                ts.tv_sec += pool->timeout;
+                rc = pthread_cond_timedwait(&pool->jobcv, &pool->mutex, &ts);
+            }
             --pool->idle;
-            DEBUG("#%u WAKE UP", (unsigned int) self.thread);
         }
 
         if (pool->status & THR_POOL_DESTROY) break;
 
-        /* get a job, then do it */
-        job = pool->job_head;
-        pool->job_head = job->next;
+        if (pool->job_head != NULL) {
+            /* get a job, then do it */
+            job = pool->job_head;
+            pool->job_head = job->next;
+            if (job == pool->job_tail)
+                pool->job_tail = NULL;
 
-        if (job == pool->job_tail)
-            pool->job_tail = NULL;
+            self.next = pool->worker;
+            pool->worker = &self;
+            pthread_mutex_unlock(&pool->mutex);
 
-        self.next = pool->worker;
-        pool->worker = &self;
-        pthread_mutex_unlock(&pool->mutex);
+            pthread_cleanup_push(job_cleanup, pool);
+            /*
+             * Call the specified job function
+             */
+            job->func(job->arg);
+            pthread_cleanup_pop(1);
+            free(job);
+            pthread_mutex_lock(&pool->mutex);
+            rc = 0;
+            continue;
+        }
 
-        pthread_cleanup_push(job_cleanup, pool);
-        job->func(job->arg);
-        pthread_cleanup_pop(1);
-        free(job);
-        pthread_mutex_lock(&pool->mutex);
+        if (rc == ETIMEDOUT && pool->nthreads > pool->min) break;
+        rc = 0;
     }
     pthread_cleanup_pop(1);
+    return NULL;
 }
 
 int thr_pool_create(thr_pool_t *pool,

@@ -1,23 +1,31 @@
+AR = ar
+ARFLAGS = crv
 CFLAGS = -std=c99 -Wall
-LIBS = -pthread
+LIBS = -pthread -lrt
+INCLUDE = ./src
+SRC_DIR = ./src
+TEST_DIR = ./test
+TEST_PROGRAM = test_thrpool test_destroy test_timeout
 
-test: test_thrpool test_destroy
-	./test_thrpool && ./test_destroy
+all: libthrpool.a
 
-test_thrpool: test_thrpool.o thrpool.o
-	$(CC) $(CFLAGS) $(LIBS) test_thrpool.o thrpool.o -o test_thrpool
+test: $(TEST_PROGRAM)
+	./test_thrpool && ./test_destroy && ./test_timeout
 
-test_destroy: test_destroy.o thrpool.o
-	$(CC) $(CFLAGS) $(LIBS) test_destroy.o thrpool.o -o test_destroy
+install: libthrpool.a
+	echo Have not implemented yet!
 
-test_thrpool.o: ./test/test_thrpool.c
-	$(CC) $(CFLAGS) -c ./test/test_thrpool.c
+libthrpool.a: thrpool.o
+	$(AR) $(ARFLAGS) $@ $<
 
-test_destroy.o: ./test/test_destroy.c
-	$(CC) $(CFLAGS) -c ./test/test_destroy.c
+%: %.o thrpool.o
+	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
-thrpool.o: ./src/thrpool.c ./src/thrpool.h
-	$(CC) $(CFLAGS) -c ./src/thrpool.c
+test_%.o: $(TEST_DIR)/test_%.c
+	$(CC) $(CFLAGS) -c $<
+
+%.o: $(SRC_DIR)/%.c $(INCLUDE)/%.h
+	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm *.o$
+	rm *.[oa] $(TEST_PROGRAM)
